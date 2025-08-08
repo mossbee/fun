@@ -1,6 +1,6 @@
 # 🎮 Gomoku Bot Battle
 
-A web-based Gomoku (Five in a Row) game where teams create JavaScript bots to battle against each other!
+A Gomoku (Five in a Row) game where teams create bots to battle against each other! Supports both web-based JavaScript bots and standalone client programs in Python, C, and C++.
 
 ## 🚀 Quick Start
 
@@ -21,13 +21,44 @@ A web-based Gomoku (Five in a Row) game where teams create JavaScript bots to ba
 
 ### For Teams (Other Computers)
 
+#### Option 1: Web-Based (Easiest)
 1. **Open a web browser**
 2. **Visit the URL provided by the host**
-3. **Create your bot!**
+3. **Create your bot using JavaScript!**
+
+#### Option 2: Client Programs (Advanced)
+Choose your preferred programming language:
+
+**Python Client:**
+```bash
+# Install requests library (if needed)
+pip install requests
+
+# Run the bot
+python3 client_python.py <server_ip>
+```
+
+**C Client:**
+```bash
+# Compile the bot
+gcc -o client_c client_c.c
+
+# Run the bot
+./client_c <server_ip>
+```
+
+**C++ Client:**
+```bash
+# Compile the bot
+g++ -o client_cpp client_cpp.cpp
+
+# Run the bot
+./client_cpp <server_ip>
+```
 
 ## 🤖 How to Create a Bot
 
-### Basic Bot Structure
+### Web-Based Bots (JavaScript)
 
 Your bot code should set a `move` variable with your chosen position:
 
@@ -68,6 +99,83 @@ move = {row: 7, col: 8};  // row and col must be 0-14
 ```
 
 **Board coordinates:** (0,0) is top-left, (14,14) is bottom-right
+
+### Client Program Bots (Python/C/C++)
+
+For client programs, implement your bot logic in the `get_move()` function:
+
+**Python:**
+```python
+def get_move(self, board, current_player):
+    """
+    IMPLEMENT YOUR BOT LOGIC HERE!
+    
+    Parameters:
+    - board: 15x15 list of lists representing the game board
+    - current_player: 'X' or 'O' (your player)
+    
+    Returns:
+    - tuple (row, col) with your move (0-14 for both row and col)
+    """
+    
+    # Your strategy here
+    import random
+    
+    valid_moves = []
+    for i in range(15):
+        for j in range(15):
+            if board[i][j] == ' ':
+                valid_moves.append((i, j))
+    
+    if valid_moves:
+        return random.choice(valid_moves)
+    
+    return (7, 7)  # Fallback
+```
+
+**C:**
+```c
+Move get_move(char board[BOARD_SIZE][BOARD_SIZE], char current_player) {
+    /*
+     * IMPLEMENT YOUR BOT LOGIC HERE!
+     * 
+     * Parameters:
+     * - board: 15x15 array representing the game board
+     * - current_player: 'X' or 'O' (your player)
+     * 
+     * Returns:
+     * - Move with row and col (0-14 for both)
+     */
+    
+    Move move;
+    
+    // Your strategy here
+    // Find valid moves and pick one
+    
+    return move;
+}
+```
+
+**C++:**
+```cpp
+Move get_move(const std::vector<std::vector<char>>& board, char current_player) {
+    /*
+     * IMPLEMENT YOUR BOT LOGIC HERE!
+     * 
+     * Parameters:
+     * - board: 15x15 vector representing the game board
+     * - current_player: 'X' or 'O' (your player)
+     * 
+     * Returns:
+     * - Move with row and col (0-14 for both)
+     */
+    
+    // Your strategy here
+    // Find valid moves and pick one
+    
+    return {7, 7};  // Fallback
+}
+```
 
 ## 🎯 Bot Strategies
 
@@ -196,6 +304,24 @@ The server provides these endpoints:
 - `POST /api/set-bot` - Save bot code
 - `POST /api/start-game` - Start the game
 - `POST /api/reset-game` - Reset the game
+- `POST /api/move` - Make a move (for client programs)
+
+## 🎯 Web-Based vs Client Programs
+
+### Web-Based Approach (Recommended for Beginners)
+- **Pros:** No installation, immediate testing, visual feedback
+- **Cons:** Limited to JavaScript, no external libraries
+- **Best for:** Quick prototyping, beginners, teams new to programming
+
+### Client Programs (Recommended for Advanced Teams)
+- **Pros:** Use your preferred language, external libraries, better debugging
+- **Cons:** Requires compilation/installation, more setup
+- **Best for:** Complex algorithms, teams with programming experience
+
+### Which to Choose?
+- **Start with web-based** if you're new to programming
+- **Use client programs** if you want to use Python/C/C++ or need advanced features
+- **Both work together** - you can have web bots vs client bots!
 
 ## 🎉 Have Fun!
 
@@ -203,6 +329,9 @@ This is designed to be educational and fun. Experiment with different strategies
 
 ---
 
-**Requirements:** Only Python 3.x (no additional packages needed)
-**Network:** Local network connection
-**Browsers:** Any modern web browser 
+**Requirements:** 
+- **Server:** Python 3.x (no additional packages needed)
+- **Python Client:** `pip install requests`
+- **C/C++ Clients:** Standard compiler (gcc/g++)
+- **Network:** Local network connection
+- **Browsers:** Any modern web browser 

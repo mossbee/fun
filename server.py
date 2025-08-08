@@ -254,6 +254,35 @@ class GameHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({'status': 'success' if success else 'error'}).encode())
         
+        elif parsed_path.path == '/api/move':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode())
+            
+            row = data.get('row')
+            col = data.get('col')
+            
+            if row is not None and col is not None:
+                # Make the move with the current player
+                current_player = self.game_server.game.current_player
+                if self.game_server.game.make_move(row, col, current_player):
+                    print(f"Player {current_player} moved to ({row}, {col})")
+                    self.game_server.display_board()
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'status': 'success'}).encode())
+                else:
+                    self.send_response(400)
+                    self.send_header('Content-type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'error': 'Invalid move'}).encode())
+            else:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': 'Missing row or col'}).encode())
+        
         elif parsed_path.path == '/api/reset-game':
             self.game_server.game.reset_game()
             self.game_server.running = False
