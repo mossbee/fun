@@ -1,0 +1,186 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f0f0;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.panel {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(15, 30px);
+    gap: 1px;
+    background: #333;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.cell {
+    width: 30px;
+    height: 30px;
+    background: #f9f9f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.cell.X { 
+    color: #e74c3c; 
+}
+
+.cell.O { 
+    color: #3498db; 
+}
+
+.controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.btn-primary { 
+    background: #3498db; 
+    color: white; 
+}
+
+.btn-success { 
+    background: #27ae60; 
+    color: white; 
+}
+
+.btn-warning { 
+    background: #f39c12; 
+    color: white; 
+}
+
+.btn-danger { 
+    background: #e74c3c; 
+    color: white; 
+}
+
+textarea {
+    width: 100%;
+    height: 300px;
+    font-family: monospace;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    resize: vertical;
+}
+
+.status {
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.status.waiting { 
+    background: #fff3cd; 
+    color: #856404; 
+}
+
+.status.playing { 
+    background: #d1ecf1; 
+    color: #0c5460; 
+}
+
+.status.finished { 
+    background: #d4edda; 
+    color: #155724; 
+}
+
+.protocol-docs {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+.protocol-docs h3 {
+    margin-top: 0;
+}
+
+.protocol-docs code {
+    background: #e9ecef;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+/* Bot connection styles */
+.bot-info {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.bot-info h3 {
+    margin: 0 0 10px 0;
+    color: #333;
+}
+
+.bot-status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.bot-status.connected {
+    background: #d4edda;
+    color: #155724;
+}
+
+.bot-status.disconnected {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.connection-info {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+.connection-info h3 {
+    margin-top: 0;
+    color: #333;
+}
+
+.code-block {
+    background: #e9ecef;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+    font-family: monospace;
+}
+
+.code-block code {
+    background: none;
+    padding: 0;
+} 

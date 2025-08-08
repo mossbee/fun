@@ -258,15 +258,26 @@ Consider the strategic value of different board positions (center, corners, edge
 - Make sure the host computer's firewall allows connections on port 8080
 - Verify all computers are on the same local network
 - Check that the IP address is correct
+- Try a different port if 8080 is already in use: `python3 -c "from server import run_server; run_server(8081)"`
 
 ### Bot not working?
-- Make sure your bot sets the `move` variable
+- Make sure your bot sets the `move` variable (JavaScript) or returns a move (Python/C/C++)
 - Check that row and col are between 0 and 14
 - Verify the move is on an empty cell
 
 ### Game not starting?
 - Make sure both Player X and Player O bots are saved
 - Check that the bot code is valid JavaScript
+
+### Client program errors?
+- **Python client**: Make sure you have `requests` library: `pip install requests`
+- **C/C++ clients**: Make sure you have a compiler installed: `sudo apt install gcc g++`
+- **Connection errors**: Check that the server IP is correct (don't include `http://`)
+
+### Server errors?
+- If you see "Address already in use", try a different port
+- If the server crashes, check the console for error messages
+- Make sure you're using Python 3.x
 
 ## 📚 Example Bots
 

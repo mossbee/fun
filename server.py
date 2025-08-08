@@ -5,7 +5,8 @@ import threading
 import time
 import os
 from urllib.parse import urlparse, parse_qs
-import base64
+import socket
+import requests
 
 class GomokuGame:
     def __init__(self, board_size=15):
@@ -96,35 +97,54 @@ class GameServer:
     def __init__(self, port=8080):
         self.port = port
         self.game = GomokuGame()
-        self.bots = {'X': None, 'O': None}
+        self.connected_bots = {'X': None, 'O': None}  # Store bot info
         self.game_thread = None
         self.running = False
         
-    def set_bot(self, player, bot_code):
-        """Set bot code for a player"""
-        self.bots[player] = bot_code
-        
+    def register_bot(self, player, bot_info):
+        """Register a bot for a player"""
+        if player in ['X', 'O']:
+            self.connected_bots[player] = bot_info
+            print(f"🤖 Bot registered for player {player}: {bot_info}")
+            return True
+        return False
+    
+    def unregister_bot(self, player):
+        """Unregister a bot"""
+        if player in ['X', 'O']:
+            self.connected_bots[player] = None
+            print(f"🤖 Bot unregistered for player {player}")
+    
     def start_game(self):
-        """Start the game if both bots are ready"""
-        if self.bots['X'] and self.bots['O']:
+        """Start the game if both bots are connected"""
+        if self.connected_bots['X'] and self.connected_bots['O']:
             self.game.reset_game()
             self.running = True
             self.game_thread = threading.Thread(target=self.run_game)
             self.game_thread.daemon = True
             self.game_thread.start()
+            print("🎮 Game started! Bots are playing...")
             return True
-        return False
+        else:
+            print("❌ Need both bots connected to start game")
+            return False
+    
+    def stop_game(self):
+        """Stop the game"""
+        self.running = False
+        if self.game_thread:
+            self.game_thread.join(timeout=1)
     
     def run_game(self):
-        """Run the game loop"""
+        """Run the game loop - get moves from connected bots"""
         while self.running and not self.game.game_over:
             current_player = self.game.current_player
-            bot_code = self.bots[current_player]
+            bot_info = self.connected_bots[current_player]
             
-            if bot_code:
+            if bot_info:
                 try:
-                    # Execute bot code to get move
-                    move = self.execute_bot(bot_code, self.game.get_game_state())
+                    # Get move from bot via HTTP API
+                    move = self.get_bot_move(bot_info, self.game.get_game_state())
                     if move and self.game.make_move(move['row'], move['col'], current_player):
                         print(f"Player {current_player} moved to ({move['row']}, {move['col']})")
                         self.display_board()
@@ -140,29 +160,21 @@ class GameServer:
             time.sleep(1)  # Delay between moves
         
         if self.game.game_over:
-            print(f"Game over! Winner: {self.game.winner}")
+            print(f"🏁 Game over! Winner: {self.game.winner}")
     
-    def execute_bot(self, bot_code, game_state):
-        """Execute bot code and return move"""
-        # Create a safe execution environment
-        namespace = {
-            'gameState': game_state,
-            'board': game_state['board'],
-            'currentPlayer': game_state['currentPlayer'],
-            'gameOver': game_state['gameOver'],
-            'winner': game_state['winner']
-        }
-        
+    def get_bot_move(self, bot_info, game_state):
+        """Get move from a connected bot"""
         try:
-            # Execute the bot code
-            exec(bot_code, namespace)
-            
-            # The bot should set a 'move' variable
-            if 'move' in namespace:
-                return namespace['move']
+            # Send game state to bot and get move back
+            response = requests.post(
+                f"http://{bot_info['host']}:{bot_info['port']}/get_move",
+                json=game_state,
+                timeout=10
+            )
+            if response.status_code == 200:
+                return response.json()
         except Exception as e:
-            print(f"Bot execution error: {e}")
-        
+            print(f"Error getting move from bot: {e}")
         return None
     
     def make_random_move(self, player):
@@ -201,23 +213,59 @@ class GameHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         parsed_path = urlparse(self.path)
         
         if parsed_path.path == '/':
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            self.wfile.write(self.get_index_html().encode())
+            # Serve the main HTML file
+            try:
+                with open('static/index.html', 'rb') as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                self.wfile.write(content)
+            except FileNotFoundError:
+                self.send_error(404, "File not found")
+        elif parsed_path.path.startswith('/static/'):
+            # Serve static files
+            file_path = parsed_path.path[1:]  # Remove leading slash
+            try:
+                with open(file_path, 'rb') as f:
+                    content = f.read()
+                
+                # Determine content type based on file extension
+                if file_path.endswith('.css'):
+                    content_type = 'text/css'
+                elif file_path.endswith('.js'):
+                    content_type = 'application/javascript'
+                else:
+                    content_type = 'text/plain'
+                
+                self.send_response(200)
+                self.send_header('Content-type', content_type)
+                self.end_headers()
+                self.wfile.write(content)
+            except FileNotFoundError:
+                self.send_error(404, "File not found")
         elif parsed_path.path == '/api/game-state':
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             response = self.game_server.game.get_game_state()
             self.wfile.write(json.dumps(response).encode())
-        elif parsed_path.path == '/api/bots':
+        elif parsed_path.path == '/api/connected-bots':
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             response = {
-                'X': self.game_server.bots['X'],
-                'O': self.game_server.bots['O']
+                'X': self.game_server.connected_bots['X'],
+                'O': self.game_server.connected_bots['O']
+            }
+            self.wfile.write(json.dumps(response).encode())
+        elif parsed_path.path == '/api/game-status':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = {
+                'isRunning': self.game_server.running,
+                'hasBots': bool(self.game_server.connected_bots['X'] and self.game_server.connected_bots['O'])
             }
             self.wfile.write(json.dumps(response).encode())
         else:
@@ -227,25 +275,25 @@ class GameHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         """Handle POST requests"""
         parsed_path = urlparse(self.path)
         
-        if parsed_path.path == '/api/set-bot':
+        if parsed_path.path == '/api/register-bot':
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
             data = json.loads(post_data.decode())
             
             player = data.get('player')
-            bot_code = data.get('code')
+            bot_info = data.get('bot_info')
             
-            if player in ['X', 'O'] and bot_code:
-                self.game_server.set_bot(player, bot_code)
+            if player in ['X', 'O'] and bot_info:
+                success = self.game_server.register_bot(player, bot_info)
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
-                self.wfile.write(json.dumps({'status': 'success'}).encode())
+                self.wfile.write(json.dumps({'status': 'success' if success else 'error'}).encode())
             else:
                 self.send_response(400)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
-                self.wfile.write(json.dumps({'error': 'Invalid player or code'}).encode())
+                self.wfile.write(json.dumps({'error': 'Invalid player or bot info'}).encode())
         
         elif parsed_path.path == '/api/start-game':
             success = self.game_server.start_game()
@@ -254,359 +302,27 @@ class GameHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({'status': 'success' if success else 'error'}).encode())
         
-        elif parsed_path.path == '/api/move':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode())
-            
-            row = data.get('row')
-            col = data.get('col')
-            
-            if row is not None and col is not None:
-                # Make the move with the current player
-                current_player = self.game_server.game.current_player
-                if self.game_server.game.make_move(row, col, current_player):
-                    print(f"Player {current_player} moved to ({row}, {col})")
-                    self.game_server.display_board()
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({'status': 'success'}).encode())
-                else:
-                    self.send_response(400)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({'error': 'Invalid move'}).encode())
-            else:
-                self.send_response(400)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({'error': 'Missing row or col'}).encode())
-        
         elif parsed_path.path == '/api/reset-game':
             self.game_server.game.reset_game()
-            self.game_server.running = False
+            self.game_server.stop_game()
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps({'status': 'success'}).encode())
-    
-    def get_index_html(self):
-        """Return the main HTML page"""
-        return '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gomoku Bot Battle</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        .panel {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .board {
-            display: grid;
-            grid-template-columns: repeat(15, 30px);
-            gap: 1px;
-            background: #333;
-            padding: 10px;
-            border-radius: 8px;
-        }
-        .cell {
-            width: 30px;
-            height: 30px;
-            background: #f9f9f9;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .cell.X { color: #e74c3c; }
-        .cell.O { color: #3498db; }
-        .controls {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .btn-primary { background: #3498db; color: white; }
-        .btn-success { background: #27ae60; color: white; }
-        .btn-warning { background: #f39c12; color: white; }
-        .btn-danger { background: #e74c3c; color: white; }
-        textarea {
-            width: 100%;
-            height: 300px;
-            font-family: monospace;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            resize: vertical;
-        }
-        .status {
-            padding: 10px;
-            border-radius: 4px;
-            margin: 10px 0;
-        }
-        .status.waiting { background: #fff3cd; color: #856404; }
-        .status.playing { background: #d1ecf1; color: #0c5460; }
-        .status.finished { background: #d4edda; color: #155724; }
-        .protocol-docs {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 4px;
-            margin-top: 20px;
-        }
-        .protocol-docs h3 {
-            margin-top: 0;
-        }
-        .protocol-docs code {
-            background: #e9ecef;
-            padding: 2px 4px;
-            border-radius: 2px;
-        }
-    </style>
-</head>
-<body>
-    <h1>🎮 Gomoku Bot Battle</h1>
-    
-    <div class="container">
-        <div class="panel">
-            <h2>Game Board</h2>
-            <div id="board" class="board"></div>
-            <div id="status" class="status waiting">Waiting for bots...</div>
-            <div class="controls">
-                <button class="btn-primary" onclick="startGame()">Start Game</button>
-                <button class="btn-warning" onclick="resetGame()">Reset Game</button>
-                <button class="btn-success" onclick="refreshBoard()">Refresh</button>
-            </div>
-        </div>
-        
-        <div class="panel">
-            <h2>Bot Editor</h2>
-            <div>
-                <label>Player X Bot:</label>
-                <textarea id="botX" placeholder="Enter bot code for player X...">// Example bot code for player X
-// Available variables: gameState, board, currentPlayer, gameOver, winner
-// Set the 'move' variable with your move: {row: 7, col: 8}
-
-// Simple random bot
-const validMoves = [];
-for (let i = 0; i < 15; i++) {
-    for (let j = 0; j < 15; j++) {
-        if (board[i][j] === ' ') {
-            validMoves.push({row: i, col: j});
-        }
-    }
-}
-
-if (validMoves.length > 0) {
-    const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-    move = randomMove;
-}</textarea>
-            </div>
-            <div style="margin-top: 10px;">
-                <label>Player O Bot:</label>
-                <textarea id="botO" placeholder="Enter bot code for player O...">// Example bot code for player O
-// Available variables: gameState, board, currentPlayer, gameOver, winner
-// Set the 'move' variable with your move: {row: 7, col: 8}
-
-// Simple random bot
-const validMoves = [];
-for (let i = 0; i < 15; i++) {
-    for (let j = 0; j < 15; j++) {
-        if (board[i][j] === ' ') {
-            validMoves.push({row: i, col: j});
-        }
-    }
-}
-
-if (validMoves.length > 0) {
-    const randomMove = validMoves[Math.floor(Math.random() * validMoves.length)];
-    move = randomMove;
-}</textarea>
-            </div>
-            <div class="controls">
-                <button class="btn-primary" onclick="saveBots()">Save Bots</button>
-                <button class="btn-success" onclick="loadBots()">Load Bots</button>
-            </div>
-        </div>
-    </div>
-    
-    <div class="protocol-docs">
-        <h3>🤖 Bot Protocol Documentation</h3>
-        <p><strong>Your bot code will receive these variables:</strong></p>
-        <ul>
-            <li><code>gameState</code> - Complete game state object</li>
-            <li><code>board</code> - 15x15 array representing the board ('X', 'O', or ' ')</li>
-            <li><code>currentPlayer</code> - 'X' or 'O' (your player)</li>
-            <li><code>gameOver</code> - true/false</li>
-            <li><code>winner</code> - 'X', 'O', 'Tie', or null</li>
-        </ul>
-        
-        <p><strong>Your bot must set the <code>move</code> variable:</strong></p>
-        <pre><code>move = {row: 7, col: 8};  // row and col must be 0-14</code></pre>
-        
-        <p><strong>Example bot strategies:</strong></p>
-        <ul>
-            <li><strong>Random:</strong> Pick any empty cell</li>
-            <li><strong>Center:</strong> Always play in the center</li>
-            <li><strong>Win First:</strong> Check for winning moves, then blocking moves</li>
-            <li><strong>Pattern:</strong> Look for patterns and create lines</li>
-        </ul>
-        
-        <p><strong>Board coordinates:</strong> (0,0) is top-left, (14,14) is bottom-right</p>
-    </div>
-
-    <script>
-        let gameInterval;
-        
-        async function startGame() {
-            const response = await fetch('/api/start-game', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'}
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                updateStatus('Game started!', 'playing');
-                startGameLoop();
-            } else {
-                alert('Please save both bots first!');
-            }
-        }
-        
-        async function resetGame() {
-            await fetch('/api/reset-game', {method: 'POST'});
-            updateStatus('Game reset', 'waiting');
-            stopGameLoop();
-            refreshBoard();
-        }
-        
-        async function saveBots() {
-            const botX = document.getElementById('botX').value;
-            const botO = document.getElementById('botO').value;
-            
-            await fetch('/api/set-bot', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({player: 'X', code: botX})
-            });
-            
-            await fetch('/api/set-bot', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({player: 'O', code: botO})
-            });
-            
-            alert('Bots saved!');
-        }
-        
-        async function loadBots() {
-            const response = await fetch('/api/bots');
-            const bots = await response.json();
-            
-            document.getElementById('botX').value = bots.X || '';
-            document.getElementById('botO').value = bots.O || '';
-        }
-        
-        async function refreshBoard() {
-            const response = await fetch('/api/game-state');
-            const gameState = await response.json();
-            displayBoard(gameState.board);
-            updateGameStatus(gameState);
-        }
-        
-        function displayBoard(board) {
-            const boardElement = document.getElementById('board');
-            boardElement.innerHTML = '';
-            
-            for (let i = 0; i < 15; i++) {
-                for (let j = 0; j < 15; j++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.textContent = board[i][j];
-                    if (board[i][j] === 'X') cell.classList.add('X');
-                    if (board[i][j] === 'O') cell.classList.add('O');
-                    boardElement.appendChild(cell);
-                }
-            }
-        }
-        
-        function updateGameStatus(gameState) {
-            let statusText = '';
-            let statusClass = 'waiting';
-            
-            if (gameState.gameOver) {
-                statusText = `Game Over! Winner: ${gameState.winner}`;
-                statusClass = 'finished';
-            } else {
-                statusText = `Current Player: ${gameState.currentPlayer}`;
-                statusClass = 'playing';
-            }
-            
-            updateStatus(statusText, statusClass);
-        }
-        
-        function updateStatus(text, className) {
-            const status = document.getElementById('status');
-            status.textContent = text;
-            status.className = `status ${className}`;
-        }
-        
-        function startGameLoop() {
-            gameInterval = setInterval(refreshBoard, 1000);
-        }
-        
-        function stopGameLoop() {
-            if (gameInterval) {
-                clearInterval(gameInterval);
-                gameInterval = null;
-            }
-        }
-        
-        // Load initial state
-        loadBots();
-        refreshBoard();
-    </script>
-</body>
-</html>
-        '''
 
 def run_server(port=8080):
     """Run the game server"""
     game_server = GameServer(port)
     
-    # Create custom handler with game server
-    handler = type('GameHandler', (GameHTTPRequestHandler,), {
-        'game_server': game_server
-    })
+    # Create custom handler class that passes game_server to each instance
+    class GameHandler(GameHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, game_server=game_server, **kwargs)
     
-    with socketserver.TCPServer(("", port), handler) as httpd:
+    with socketserver.TCPServer(("", port), GameHandler) as httpd:
         print(f"🎮 Gomoku Bot Battle Server running on http://localhost:{port}")
         print("📱 Other computers can access via: http://YOUR_IP_ADDRESS:8080")
-        print("🤖 Teams can create bots by visiting the URL in their browser")
+        print("🤖 Bots should connect via HTTP API")
         print("⏹️  Press Ctrl+C to stop the server")
         
         try:

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gomoku Bot Battle</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>🎮 Gomoku Bot Battle</h1>
+    
+    <div class="container">
+        <div class="panel">
+            <h2>Game Board</h2>
+            <div id="board" class="board"></div>
+            <div id="status" class="status waiting">Waiting for bots to connect...</div>
+            <div class="controls">
+                <button class="btn-primary" onclick="startGame()">Start Game</button>
+                <button class="btn-warning" onclick="resetGame()">Reset Game</button>
+                <button class="btn-success" onclick="refreshBoard()">Refresh</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Bot Connection Status</h2>
+            <div id="bot-status">
+                <div class="bot-info">
+                    <h3>Player X</h3>
+                    <div id="bot-x-status" class="bot-status disconnected">Not Connected</div>
+                </div>
+                <div class="bot-info">
+                    <h3>Player O</h3>
+                    <div id="bot-o-status" class="bot-status disconnected">Not Connected</div>
+                </div>
+            </div>
+            
+            <div class="connection-info">
+                <h3>🤖 How to Connect Bots</h3>
+                <p>Bots need to connect via network. Run this command on each bot machine:</p>
+                <div class="code-block">
+                    <code>python client_python.py SERVER_IP PLAYER [PORT]</code>
+                </div>
+                <p><strong>Examples:</strong></p>
+                <ul>
+                    <li><code>python client_python.py 192.168.1.100 X 8081</code></li>
+                    <li><code>python client_python.py 192.168.1.100 O 8082</code></li>
+                </ul>
+                <p><strong>Requirements:</strong></p>
+                <ul>
+                    <li>Install requests: <code>pip install requests</code></li>
+                    <li>Bots must be on the same network as the server</li>
+                    <li>Each bot needs a unique port</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="protocol-docs">
+        <h3>🤖 Bot Protocol Documentation</h3>
+        <p><strong>Your bot must provide an HTTP endpoint at <code>/get_move</code>:</strong></p>
+        <ul>
+            <li><strong>Method:</strong> POST</li>
+            <li><strong>Input:</strong> JSON with game state</li>
+            <li><strong>Output:</strong> JSON with move: <code>{"row": 7, "col": 8}</code></li>
+        </ul>
+        
+        <p><strong>Game state structure:</strong></p>
+        <pre><code>{
+  "board": [15x15 array],
+  "currentPlayer": "X" or "O",
+  "gameOver": true/false,
+  "winner": "X", "O", "Tie", or null
+}</code></pre>
+        
+        <p><strong>Example bot strategies:</strong></p>
+        <ul>
+            <li><strong>Random:</strong> Pick any empty cell</li>
+            <li><strong>Center:</strong> Always play in the center</li>
+            <li><strong>Win First:</strong> Check for winning moves, then blocking moves</li>
+            <li><strong>Pattern:</strong> Look for patterns and create lines</li>
+        </ul>
+        
+        <p><strong>Board coordinates:</strong> (0,0) is top-left, (14,14) is bottom-right</p>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html> 
